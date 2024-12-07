@@ -44,21 +44,28 @@ wss.on("connection", (ws) => {
       }));
 
       console.log(`Client ${ws.clientId} joined room: ${room}`);
-    } else if (data.type === "message" || data.type === "image" || data.type === "file" || data.type === "video") {
+    } else if (
+      data.type === "message" ||
+      data.type === "image" ||
+      data.type === "file" ||
+      data.type === "video"
+    ) {
       const room = ws.currentRoom;
       if (room && groups.has(room)) {
         groups.get(room).forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: data.type,
-              sender: ws.clientId,
-              message: data.message,
-              image: data.image,
-              file: data.file,
-              fileName: data.fileName,
-              video: data.video,
-              room: room
-            }));
+            client.send(
+              JSON.stringify({
+                type: data.type,
+                sender: ws.clientId,
+                message: data.message,
+                image: data.image,
+                file: data.file,
+                fileName: data.fileName,
+                video: data.video,
+                room: room,
+              })
+            );
           }
         });
       }
@@ -86,20 +93,23 @@ wss.on("connection", (ws) => {
         console.log("Recipient not found or not connected");
       }
     } else if (data.type === "leaveGroup") {
-      const room = clients.get(ws);
+      // Corrected room retrieval and client removal
+      const room = ws.currentRoom;
       if (room && groups.has(room)) {
         groups.get(room).forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
+          if (client.readyState === WebSocket.OPEN) {
             client.send(
               JSON.stringify({
                 sender: "System",
-                message: "Group has been disbanded.",
+                message: `Group ${room} has been disbanded.`,
+                type: "system",
               })
             );
           }
-          clients.delete(client);
+          client.currentRoom = null;
         });
         groups.delete(room);
+        ws.currentRoom = null;
         console.log("Group disbanded");
       }
     } else if (data.type === "broadcast") {
@@ -115,19 +125,8 @@ wss.on("connection", (ws) => {
           );
         }
       });
-    } else {
-      // Broadcast the received message to all clients in the same room
-      const currentRoom = clients.get(ws);
-      if (currentRoom && groups.has(currentRoom)) {
-        groups.get(currentRoom).forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(
-              JSON.stringify({ sender: currentRoom, message: data.message })
-            );
-          }
-        });
-      }
     }
+    // Removed any redundant or conflicting code
   });
 
   ws.on("close", () => {

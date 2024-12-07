@@ -38,28 +38,25 @@ ws.addEventListener("message", (event) => {
   if (data.type === "init") {
     clientId = data.clientId;
     console.log("Initialized with client ID:", clientId);
+  } else if (data.type === "roomJoined") {
+    currentRoom = data.room;
+    toggleRoomButtons();
+    document.querySelector('.chat-info h3').textContent = `Room: ${currentRoom}`;
+    addSystemMessage(`Joined room "${currentRoom}" successfully`);
   } else if (data.type === "roomUpdate") {
     appendMessage("System", data.message);
-  } else if (data.type === "message") {
-    appendMessage(data.sender, data.message);
-  } else if (data.type === "image") {
-    const chatBox = document.getElementById("chat-box");
-    const imageElement = document.createElement("img");
-    imageElement.src = data.image;
-    chatBox.appendChild(imageElement);
-  } else if (data.type === "file") {
-    const chatBox = document.getElementById("chat-box");
-    const fileElement = document.createElement("a");
-    fileElement.href = data.file;
-    fileElement.setAttribute("download", data.fileName);
-    fileElement.textContent = `${data.sender}: ${data.fileName}`;
-    chatBox.appendChild(fileElement);
-  } else if (data.type === "video") {
-    const chatBox = document.getElementById("chat-box");
-    const videoElement = document.createElement("video");
-    videoElement.src = data.video;
-    videoElement.controls = true;
-    chatBox.appendChild(videoElement);
+  } else if (data.room === currentRoom) {
+    if (data.type === "message") {
+      appendMessage(data.sender, data.message);
+    } else if (data.type === "image") {
+      appendImageMessage(data.sender, data.image);
+    } else if (data.type === "file") {
+      appendFileMessage(data.sender, data.file, data.fileName);
+    } else if (data.type === "video") {
+      appendVideoMessage(data.sender, data.video);
+    }
+  } else if (data.type === "system") {
+    addSystemMessage(data.message);
   } else {
     appendMessage(data.sender, data.message);
   }
@@ -78,28 +75,6 @@ function sendMessage(message) {
   ws.send(JSON.stringify(messageData));
   appendMessage("You", message);
 }
-
-ws.addEventListener("message", (event) => {
-  const data = JSON.parse(event.data);
-  console.log("Message received:", data);
-
-  if (data.type === "roomJoined") {
-    currentRoom = data.room;
-    toggleRoomButtons();
-    document.querySelector('.chat-info h3').textContent = `Room: ${currentRoom}`;
-    addSystemMessage(`Joined room "${currentRoom}" successfully`);
-  } else if (data.room === currentRoom) {
-    if (data.type === "message") {
-      appendMessage(data.sender, data.message);
-    } else if (data.type === "image") {
-      appendImageMessage(data.sender, data.image);
-    } else if (data.type === "file") {
-      appendFileMessage(data.sender, data.file, data.fileName);
-    } else if (data.type === "video") {
-      appendVideoMessage(data.sender, data.video);
-    }
-  }
-});
 
 document.getElementById("send-button").addEventListener("click", () => {
   const messageInput = document.getElementById("message-input");
@@ -165,11 +140,11 @@ document.getElementById("send-image-button").addEventListener("click", () => {
       console.log("Sending image");
       if (currentRoom) {
         ws.send(
-          JSON.stringify({ type: "image", sender: "Client 1", image: imageData, room: currentRoom })
+          JSON.stringify({ type: "image", sender: clientId, image: imageData, room: currentRoom })
         );
       } else {
         ws.send(
-          JSON.stringify({ type: "image", sender: "Client 1", image: imageData })
+          JSON.stringify({ type: "image", sender: clientId, image: imageData })
         );
       }
     };
@@ -189,7 +164,7 @@ document.getElementById("send-file-button").addEventListener("click", () => {
         ws.send(
           JSON.stringify({
             type: "file",
-            sender: "Client 1",
+            sender: clientId,
             file: fileData,
             fileName: file.name,
             room: currentRoom
@@ -199,7 +174,7 @@ document.getElementById("send-file-button").addEventListener("click", () => {
         ws.send(
           JSON.stringify({
             type: "file",
-            sender: "Client 1",
+            sender: clientId,
             file: fileData,
             fileName: file.name
           })
@@ -220,11 +195,11 @@ document.getElementById("send-video-button").addEventListener("click", () => {
       console.log("Sending video");
       if (currentRoom) {
         ws.send(
-          JSON.stringify({ type: "video", sender: "Client 1", video: videoData, room: currentRoom })
+          JSON.stringify({ type: "video", sender: clientId, video: videoData, room: currentRoom })
         );
       } else {
         ws.send(
-          JSON.stringify({ type: "video", sender: "Client 1", video: videoData })
+          JSON.stringify({ type: "video", sender: clientId, video: videoData })
         );
       }
     };
@@ -351,11 +326,23 @@ function appendFileMessage(sender, fileData, fileName) {
   const chatBox = document.getElementById("chat-box");
   const messageElement = document.createElement("div");
   messageElement.className = sender === "You" ? "message-sent" : "message-received";
+
   const link = document.createElement("a");
   link.href = fileData;
   link.download = fileName;
-  link.textContent = `${sender}: ${fileName}`;
-  messageElement.appendChild(link);
+  link.style.display = "none"; // Hide the link
+
+  // Create a download button with an icon
+  const downloadButton = document.createElement("button");
+  downloadButton.className = "download-button";
+  downloadButton.innerHTML = `${sender}: ${fileName}`;
+  downloadButton.onclick = () => {
+    link.click();
+  };
+
+  messageElement.appendChild(downloadButton);
+  messageElement.appendChild(link); // Append link to the message element
+
   chatBox.appendChild(messageElement);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
