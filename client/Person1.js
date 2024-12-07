@@ -2,6 +2,24 @@ const ws = new WebSocket("ws://localhost:3000");
 let currentRoom = null;
 let clientId = null;
 
+// Get references to buttons
+const createRoomButton = document.getElementById('create-room-button');
+const joinRoomButton = document.getElementById('join-room-button');
+const leaveRoomButton = document.getElementById('leave-room-button');
+
+// Add event listeners to buttons
+createRoomButton.addEventListener('click', () => {
+  const roomName = prompt('Enter room name:');
+  createRoom(roomName);
+});
+
+joinRoomButton.addEventListener('click', () => {
+  const roomName = prompt('Enter room name to join:');
+  joinRoom(roomName);
+});
+
+leaveRoomButton.addEventListener('click', leaveRoom);
+
 ws.addEventListener("open", () => {
   console.log("Connected to server");
 });
@@ -48,21 +66,40 @@ ws.addEventListener("message", (event) => {
 });
 
 function sendMessage(message) {
-  if (!message.trim()) return;
-  
+  if (!message.trim() || !currentRoom) return;
+
   const messageData = {
     type: "message",
     message: message,
-    sender: clientId
+    sender: clientId,
+    room: currentRoom
   };
-  
-  if (currentRoom) {
-    messageData.room = currentRoom;
-  }
-  
+
   ws.send(JSON.stringify(messageData));
   appendMessage("You", message);
 }
+
+ws.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  console.log("Message received:", data);
+
+  if (data.type === "roomJoined") {
+    currentRoom = data.room;
+    toggleRoomButtons();
+    document.querySelector('.chat-info h3').textContent = `Room: ${currentRoom}`;
+    addSystemMessage(`Joined room "${currentRoom}" successfully`);
+  } else if (data.room === currentRoom) {
+    if (data.type === "message") {
+      appendMessage(data.sender, data.message);
+    } else if (data.type === "image") {
+      appendImageMessage(data.sender, data.image);
+    } else if (data.type === "file") {
+      appendFileMessage(data.sender, data.file, data.fileName);
+    } else if (data.type === "video") {
+      appendVideoMessage(data.sender, data.video);
+    }
+  }
+});
 
 document.getElementById("send-button").addEventListener("click", () => {
   const messageInput = document.getElementById("message-input");
@@ -196,20 +233,149 @@ document.getElementById("send-video-button").addEventListener("click", () => {
 });
 
 function toggleRoomButtons() {
-  const createRoomButton = document.getElementById("create-room-button");
-  const joinRoomButton = document.getElementById("join-room-button");
-  const leaveRoomButton = document.getElementById("leave-room-button");
-  const leaveGroupButton = document.getElementById("leave-group-button");
-
   if (currentRoom) {
     createRoomButton.style.display = "none";
     joinRoomButton.style.display = "none";
     leaveRoomButton.style.display = "block";
-    leaveGroupButton.style.display = "block";
   } else {
     createRoomButton.style.display = "block";
     joinRoomButton.style.display = "block";
     leaveRoomButton.style.display = "none";
-    leaveGroupButton.style.display = "none";
   }
+}
+
+function createRoom(roomName) {
+  if (roomName) {
+    ws.send(JSON.stringify({
+      type: "createRoom",
+      room: roomName
+    }));
+  }
+}
+
+function joinRoom(roomName) {
+  if (roomName) {
+    ws.send(JSON.stringify({
+      type: "joinRoom",
+      room: roomName
+    }));
+  }
+}
+
+function leaveRoom() {
+  if (currentRoom) {
+    ws.send(JSON.stringify({ type: "leaveRoom" }));
+    currentRoom = null;
+    toggleRoomButtons();
+    document.querySelector('.chat-info h3').textContent = `Chat Room`;
+    addSystemMessage(`Left the room`);
+    document.getElementById('chat-box').innerHTML = '';
+  }
+}
+
+function sendImage() {
+  const fileInput = document.getElementById("image-input");
+  const file = fileInput.files[0];
+  if (file && currentRoom) {
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const imageData = event.target.result;
+      ws.send(JSON.stringify({
+        type: "image",
+        sender: clientId,
+        image: imageData,
+        room: currentRoom
+      }));
+      appendImageMessage("You", imageData);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function sendFile() {
+  const fileInput = document.getElementById("file-input");
+  const file = fileInput.files[0];
+  if (file && currentRoom) {
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const fileData = event.target.result;
+      ws.send(JSON.stringify({
+        type: "file",
+        sender: clientId,
+        file: fileData,
+        fileName: file.name,
+        room: currentRoom
+      }));
+      appendFileMessage("You", fileData, file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function sendVideo() {
+  const fileInput = document.getElementById("video-input");
+  const file = fileInput.files[0];
+  if (file && currentRoom) {
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const videoData = event.target.result;
+      ws.send(JSON.stringify({
+        type: "video",
+        sender: clientId,
+        video: videoData,
+        room: currentRoom
+      }));
+      appendVideoMessage("You", videoData);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+document.getElementById("image-input").addEventListener("change", sendImage);
+document.getElementById("file-input").addEventListener("change", sendFile);
+document.getElementById("video-input").addEventListener("change", sendVideo);
+
+function appendImageMessage(sender, imageSrc) {
+  const chatBox = document.getElementById("chat-box");
+  const messageElement = document.createElement("div");
+  messageElement.className = sender === "You" ? "message-sent" : "message-received";
+  const img = document.createElement("img");
+  img.src = imageSrc;
+  img.style.maxWidth = "200px";
+  messageElement.appendChild(img);
+  chatBox.appendChild(messageElement);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function appendFileMessage(sender, fileData, fileName) {
+  const chatBox = document.getElementById("chat-box");
+  const messageElement = document.createElement("div");
+  messageElement.className = sender === "You" ? "message-sent" : "message-received";
+  const link = document.createElement("a");
+  link.href = fileData;
+  link.download = fileName;
+  link.textContent = `${sender}: ${fileName}`;
+  messageElement.appendChild(link);
+  chatBox.appendChild(messageElement);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function appendVideoMessage(sender, videoSrc) {
+  const chatBox = document.getElementById("chat-box");
+  const messageElement = document.createElement("div");
+  messageElement.className = sender === "You" ? "message-sent" : "message-received";
+  const video = document.createElement("video");
+  video.src = videoSrc;
+  video.controls = true;
+  video.style.maxWidth = "200px";
+  messageElement.appendChild(video);
+  chatBox.appendChild(messageElement);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+function addSystemMessage(message) {
+    const messageElement = document.createElement('div');
+    messageElement.className = 'message system-message';
+    messageElement.textContent = message;
+    document.getElementById('chat-box').appendChild(messageElement);
 }

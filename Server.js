@@ -35,34 +35,42 @@ wss.on("connection", (ws) => {
         groups.set(room, new Set());
       }
       groups.get(room).add(ws);
-      clients.set(ws, room);
-      
-      // Notify all clients in the room
-      groups.get(room).forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: "roomUpdate",
-            message: `${data.type === "createRoom" ? "Room created" : "User joined"}: ${room}`,
-            room: room
-          }));
-        }
-      });
-      
-      console.log(`User ${data.type === "createRoom" ? "created" : "joined"} room: ${room}`);
-    } else if (data.type === "message") {
-      // Handle regular messages
-      const room = clients.get(ws);
+      ws.currentRoom = room;
+
+      // Notify the client about successful room join
+      ws.send(JSON.stringify({
+        type: "roomJoined",
+        room: room
+      }));
+
+      console.log(`Client ${ws.clientId} joined room: ${room}`);
+    } else if (data.type === "message" || data.type === "image" || data.type === "file" || data.type === "video") {
+      const room = ws.currentRoom;
       if (room && groups.has(room)) {
         groups.get(room).forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({
-              type: "message",
+              type: data.type,
               sender: ws.clientId,
               message: data.message,
+              image: data.image,
+              file: data.file,
+              fileName: data.fileName,
+              video: data.video,
               room: room
             }));
           }
         });
+      }
+    } else if (data.type === "leaveRoom") {
+      const room = ws.currentRoom;
+      if (room && groups.has(room)) {
+        groups.get(room).delete(ws);
+        if (groups.get(room).size === 0) {
+          groups.delete(room);
+        }
+        ws.currentRoom = null;
+        console.log(`Client ${ws.clientId} left room: ${room}`);
       }
     } else if (data.type === "personalMessage") {
       const recipientId = data.recipientId;
@@ -76,16 +84,6 @@ wss.on("connection", (ws) => {
         console.log("Personal message sent to recipient");
       } else {
         console.log("Recipient not found or not connected");
-      }
-    } else if (data.type === "leaveRoom") {
-      const room = clients.get(ws);
-      if (room && groups.has(room)) {
-        groups.get(room).delete(ws);
-        if (groups.get(room).size === 0) {
-          groups.delete(room);
-        }
-        clients.delete(ws);
-        console.log("User left the room");
       }
     } else if (data.type === "leaveGroup") {
       const room = clients.get(ws);
@@ -104,46 +102,6 @@ wss.on("connection", (ws) => {
         groups.delete(room);
         console.log("Group disbanded");
       }
-    } else if (data.type === "image") {
-      // Broadcast the image to all clients
-      wss.clients.forEach((client) => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(
-            JSON.stringify({
-              sender: data.sender,
-              image: data.image,
-              type: "image",
-            })
-          );
-        }
-      });
-    } else if (data.type === "file") {
-      // Broadcast the file to all clients
-      wss.clients.forEach((client) => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(
-            JSON.stringify({
-              sender: data.sender,
-              file: data.file,
-              fileName: data.fileName,
-              type: "file",
-            })
-          );
-        }
-      });
-    } else if (data.type === "video") {
-      // Broadcast the video to all clients
-      wss.clients.forEach((client) => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(
-            JSON.stringify({
-              sender: data.sender,
-              video: data.video,
-              type: "video",
-            })
-          );
-        }
-      });
     } else if (data.type === "broadcast") {
       // Broadcast the message to all clients
       wss.clients.forEach((client) => {
@@ -174,14 +132,15 @@ wss.on("connection", (ws) => {
 
   ws.on("close", () => {
     console.log("A user disconnected");
-    const room = clients.get(ws);
+    const room = ws.currentRoom;
     if (room && groups.has(room)) {
       groups.get(room).delete(ws);
       if (groups.get(room).size === 0) {
         groups.delete(room);
       }
-      clients.delete(ws);
     }
+    clients.delete(ws.clientId);
+    console.log(`Client ${ws.clientId} disconnected`);
   });
 });
 

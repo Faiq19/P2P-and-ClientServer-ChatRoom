@@ -200,6 +200,10 @@ h4 {
     border-bottom-right-radius: 0;
     color: white;
 }
+.message-sent, .message-received {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
 .chat-timestamp {
     margin-left: 10px;
     font-size: 10px;
@@ -369,4 +373,14 @@ input[type="file"] {
 .send-button:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(255,107,107,0.3);
+}
+
+.system-message {
+    text-align: center;
+    padding: 8px;
+    margin: 8px 0;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    color: #666;
+    font-style: italic;
 }
