@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="Styling1.css">
+    <title>Wave Chat</title>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="header">
+            <div class="brand">Wave</div>
+            <div class="user-status online"></div>
+        </div>
+
+        <div class="sidebar-search-container">
+            <input type="text" placeholder="Search or start new chat">
+        </div>
+
+        <div class="chat-list">
+            <!-- Dynamic chat items will be inserted here by JavaScript -->
+        </div>
+    </div>
+
+    <div class="message-container">
+        <div class="chat-header">
+            <div class="chat-info">
+                <h3>Chat Room</h3>
+                <span class="participant-count">0 participants</span>
+            </div>
+            
+            <div class="chat-actions">
+                <button id="create-room-button" class="action-button">New Room</button>
+                <button id="join-room-button" class="action-button">Join</button>
+                <button id="leave-room-button" class="action-button" style="display: none">Leave</button>
+            </div>
+        </div>
+
+        <div class="message-content" id="chat-box">
+            <!-- Messages will be inserted here by JavaScript -->
+        </div>
+
+        <div class="message-input-container">
+            <input type="text" id="message-input" placeholder="Type your message...">
+            
+            <div class="action-buttons">
+                <label class="action-button" for="image-input">
+                    <img src="icons/image.svg" alt="Image">
+                </label>
+                <input type="file" id="image-input" accept="image/*" hidden>
+
+                <label class="action-button" for="file-input">
+                    <img src="icons/file.svg" alt="File">
+                </label>
+                <input type="file" id="file-input" hidden>
+
+                <label class="action-button" for="video-input">
+                    <img src="icons/video.svg" alt="Video">
+                </label>
+                <input type="file" id="video-input" accept="video/*" hidden>
+            </div>
+
+            <button id="send-button" class="send-button">Send</button>
+        </div>
+    </div>
+
+    <script src="Person1.js"></script>
+</body>
+</html>
+
+
