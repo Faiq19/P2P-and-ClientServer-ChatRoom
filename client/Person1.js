@@ -32,33 +32,48 @@ function appendMessage(sender, message) {
 }
 
 ws.addEventListener("message", (event) => {
-  const data = JSON.parse(event.data);
-  console.log("Message received:", data);
+  try {
+    const data = JSON.parse(event.data);
+    console.log("Received message type:", data.type);
 
-  if (data.type === "init") {
-    clientId = data.clientId;
-    console.log("Initialized with client ID:", clientId);
-  } else if (data.type === "roomJoined") {
-    currentRoom = data.room;
-    toggleRoomButtons();
-    document.querySelector('.chat-info h3').textContent = `Room: ${currentRoom}`;
-    addSystemMessage(`Joined room "${currentRoom}" successfully`);
-  } else if (data.type === "roomUpdate") {
-    appendMessage("System", data.message);
-  } else if (data.room === currentRoom) {
-    if (data.type === "message") {
-      appendMessage(data.sender, data.message);
-    } else if (data.type === "image") {
-      appendImageMessage(data.sender, data.image);
-    } else if (data.type === "file") {
+    if (data.type === "file" && data.room === currentRoom) {
+      console.log("Received file:", data.fileName);
       appendFileMessage(data.sender, data.file, data.fileName);
-    } else if (data.type === "video") {
-      appendVideoMessage(data.sender, data.video);
     }
-  } else if (data.type === "system") {
-    addSystemMessage(data.message);
-  } else {
-    appendMessage(data.sender, data.message);
+    // ...existing code...
+    console.log("Message received:", data);
+
+    if (data.type === "init") {
+      clientId = data.clientId;
+      console.log("Initialized with client ID:", clientId);
+    } else if (data.type === "chatHistory") {
+      currentRoom = data.room;
+      toggleRoomButtons();
+      document.querySelector('.chat-info h3').textContent = `Room: ${currentRoom}`;
+      addSystemMessage(`Joined room "${currentRoom}" successfully`);
+
+      // Display chat history
+      data.messages.forEach((messageData) => {
+        if (messageData.type === "message") {
+          appendMessage(messageData.sender, messageData.message);
+        } else if (messageData.type === "file") {
+          appendFileMessage(messageData.sender, messageData.file, messageData.fileName);
+        }
+      });
+    } else if (data.type === "participantCount" && data.room === currentRoom) {
+      // Update participant count display
+      document.querySelector('.participant-count').textContent = `${data.count} participants`;
+    } else if (data.type === "file" && data.room === currentRoom) {
+      appendFileMessage(data.sender, data.file, data.fileName);
+    } else if (data.type === "message" && data.room === currentRoom) {
+      appendMessage(data.sender, data.message);
+    } else if (data.type === "system") {
+      addSystemMessage(data.message);
+    } else {
+      appendMessage(data.sender, data.message);
+    }
+  } catch (error) {
+    console.error("Error processing message:", error);
   }
 });
 
@@ -130,82 +145,61 @@ document.getElementById("leave-group-button").addEventListener("click", () => {
   toggleRoomButtons();
 });
 
-document.getElementById("send-image-button").addEventListener("click", () => {
-  const fileInput = document.getElementById("image-input");
-  const file = fileInput.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const imageData = event.target.result;
-      console.log("Sending image");
-      if (currentRoom) {
-        ws.send(
-          JSON.stringify({ type: "image", sender: clientId, image: imageData, room: currentRoom })
-        );
-      } else {
-        ws.send(
-          JSON.stringify({ type: "image", sender: clientId, image: imageData })
-        );
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-});
-
 document.getElementById("send-file-button").addEventListener("click", () => {
   const fileInput = document.getElementById("file-input");
-  const file = fileInput.files[0];
+  fileInput.click();
+});
+
+document.getElementById("file-input").addEventListener("change", (event) => {
+  const file = event.target.files[0];
   if (file) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const fileData = event.target.result;
-      console.log("Sending file");
-      if (currentRoom) {
-        ws.send(
-          JSON.stringify({
-            type: "file",
-            sender: clientId,
-            file: fileData,
-            fileName: file.name,
-            room: currentRoom
-          })
-        );
-      } else {
-        ws.send(
-          JSON.stringify({
-            type: "file",
-            sender: clientId,
-            file: fileData,
-            fileName: file.name
-          })
-        );
-      }
-    };
-    reader.readAsDataURL(file);
+    sendFile(file);
   }
 });
 
-document.getElementById("send-video-button").addEventListener("click", () => {
-  const fileInput = document.getElementById("video-input");
-  const file = fileInput.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const videoData = event.target.result;
-      console.log("Sending video");
-      if (currentRoom) {
-        ws.send(
-          JSON.stringify({ type: "video", sender: clientId, video: videoData, room: currentRoom })
-        );
-      } else {
-        ws.send(
-          JSON.stringify({ type: "video", sender: clientId, video: videoData })
-        );
-      }
-    };
-    reader.readAsDataURL(file);
+function sendFile(file) {
+  if (!currentRoom) {
+    alert("Please join a room before sending files");
+    return;
   }
-});
+
+  console.log("Sending file:", file.name);
+
+  const maxSize = 5 * 1024 * 1024; // 5MB limit
+  if (file.size > maxSize) {
+    alert("File is too large. Maximum size is 5MB");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    try {
+      const fileData = event.target.result;
+      console.log("File read successfully, sending to server...");
+
+      const messageData = {
+        type: "file",
+        sender: clientId,
+        file: fileData,
+        fileName: file.name,
+        room: currentRoom
+      };
+
+      ws.send(JSON.stringify(messageData));
+      appendFileMessage("You", fileData, file.name);
+    } catch (error) {
+      console.error("Error sending file:", error);
+      alert("Failed to send file. Please try again.");
+    }
+  };
+
+  reader.onerror = function(error) {
+    console.error("Error reading file:", error);
+    alert("Failed to read file. Please try again.");
+  };
+
+  reader.readAsDataURL(file);
+}
 
 function toggleRoomButtons() {
   if (currentRoom) {
@@ -216,6 +210,8 @@ function toggleRoomButtons() {
     createRoomButton.style.display = "block";
     joinRoomButton.style.display = "block";
     leaveRoomButton.style.display = "none";
+    // Clear participant count when not in a room
+    document.querySelector('.participant-count').textContent = `0 participants`;
   }
 }
 
@@ -245,124 +241,56 @@ function leaveRoom() {
     document.querySelector('.chat-info h3').textContent = `Chat Room`;
     addSystemMessage(`Left the room`);
     document.getElementById('chat-box').innerHTML = '';
+    // Reset participant count display
+    document.querySelector('.participant-count').textContent = `0 participants`;
   }
-}
-
-function sendImage() {
-  const fileInput = document.getElementById("image-input");
-  const file = fileInput.files[0];
-  if (file && currentRoom) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const imageData = event.target.result;
-      ws.send(JSON.stringify({
-        type: "image",
-        sender: clientId,
-        image: imageData,
-        room: currentRoom
-      }));
-      appendImageMessage("You", imageData);
-    };
-    reader.readAsDataURL(file);
-  }
-}
-
-function sendFile() {
-  const fileInput = document.getElementById("file-input");
-  const file = fileInput.files[0];
-  if (file && currentRoom) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const fileData = event.target.result;
-      ws.send(JSON.stringify({
-        type: "file",
-        sender: clientId,
-        file: fileData,
-        fileName: file.name,
-        room: currentRoom
-      }));
-      appendFileMessage("You", fileData, file.name);
-    };
-    reader.readAsDataURL(file);
-  }
-}
-
-function sendVideo() {
-  const fileInput = document.getElementById("video-input");
-  const file = fileInput.files[0];
-  if (file && currentRoom) {
-    const reader = new FileReader();
-    reader.onload = function (event) {
-      const videoData = event.target.result;
-      ws.send(JSON.stringify({
-        type: "video",
-        sender: clientId,
-        video: videoData,
-        room: currentRoom
-      }));
-      appendVideoMessage("You", videoData);
-    };
-    reader.readAsDataURL(file);
-  }
-}
-
-document.getElementById("image-input").addEventListener("change", sendImage);
-document.getElementById("file-input").addEventListener("change", sendFile);
-document.getElementById("video-input").addEventListener("change", sendVideo);
-
-function appendImageMessage(sender, imageSrc) {
-  const chatBox = document.getElementById("chat-box");
-  const messageElement = document.createElement("div");
-  messageElement.className = sender === "You" ? "message-sent" : "message-received";
-  const img = document.createElement("img");
-  img.src = imageSrc;
-  img.style.maxWidth = "200px";
-  messageElement.appendChild(img);
-  chatBox.appendChild(messageElement);
-  chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function appendFileMessage(sender, fileData, fileName) {
+  console.log("Appending file message:", fileName);
+  
   const chatBox = document.getElementById("chat-box");
-  const messageElement = document.createElement("div");
-  messageElement.className = sender === "You" ? "message-sent" : "message-received";
+  const messageDiv = document.createElement("div");
+  messageDiv.className = `chat-message ${sender === "You" ? "message-sent" : "message-received"}`;
 
-  const link = document.createElement("a");
-  link.href = fileData;
-  link.download = fileName;
-  link.style.display = "none"; // Hide the link
+  // Create message container
+  const messageContainer = document.createElement("div");
+  messageContainer.className = "file-message-container";
 
-  // Create a download button with an icon
+  // Add sender name
+  const senderText = document.createElement("div");
+  senderText.className = "message-sender";
+  senderText.textContent = sender;
+  messageContainer.appendChild(senderText);
+
+  // Add file icon and name
+  const fileInfo = document.createElement("div");
+  fileInfo.className = "file-info";
+  fileInfo.innerHTML = `📎 ${fileName}`;
+  messageContainer.appendChild(fileInfo);
+
+  // Add download button
   const downloadButton = document.createElement("button");
   downloadButton.className = "download-button";
-  downloadButton.innerHTML = `${sender}: ${fileName}`;
+  downloadButton.innerHTML = "Download";
   downloadButton.onclick = () => {
+    const link = document.createElement("a");
+    link.href = fileData;
+    link.download = fileName;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   };
+  messageContainer.appendChild(downloadButton);
 
-  messageElement.appendChild(downloadButton);
-  messageElement.appendChild(link); // Append link to the message element
-
-  chatBox.appendChild(messageElement);
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-function appendVideoMessage(sender, videoSrc) {
-  const chatBox = document.getElementById("chat-box");
-  const messageElement = document.createElement("div");
-  messageElement.className = sender === "You" ? "message-sent" : "message-received";
-  const video = document.createElement("video");
-  video.src = videoSrc;
-  video.controls = true;
-  video.style.maxWidth = "200px";
-  messageElement.appendChild(video);
-  chatBox.appendChild(messageElement);
+  messageDiv.appendChild(messageContainer);
+  chatBox.appendChild(messageDiv);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function addSystemMessage(message) {
-    const messageElement = document.createElement('div');
-    messageElement.className = 'message system-message';
-    messageElement.textContent = message;
-    document.getElementById('chat-box').appendChild(messageElement);
+  const messageElement = document.createElement('div');
+  messageElement.className = 'message system-message';
+  messageElement.textContent = message;
+  document.getElementById('chat-box').appendChild(messageElement);
 }

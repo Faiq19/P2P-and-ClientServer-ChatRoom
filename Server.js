@@ -26,115 +26,181 @@ wss.on("connection", (ws) => {
   }));
 
   ws.on("message", (message) => {
-    const data = JSON.parse(message);
-    console.log("Message received:", data);
+    try {
+      const data = JSON.parse(message);
+      console.log("Server received message type:", data.type);
 
-    if (data.type === "createRoom" || data.type === "joinRoom") {
-      const room = data.room;
-      if (!groups.has(room)) {
-        groups.set(room, new Set());
+      if (data.type === "file") {
+        const room = data.room;
+        if (room && groups.has(room)) {
+          console.log(`Broadcasting file ${data.fileName} to room ${room}`);
+          
+          // Store file message in chat history
+          groups.get(room).messages.push({
+            type: "file",
+            sender: ws.clientId,
+            file: data.file,
+            fileName: data.fileName,
+            room: room
+          });
+
+          // Broadcast to other clients in room
+          groups.get(room).clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: "file",
+                sender: ws.clientId,
+                file: data.file,
+                fileName: data.fileName,
+                room: room
+              }));
+            }
+          });
+        }
       }
-      groups.get(room).add(ws);
-      ws.currentRoom = room;
 
-      // Notify the client about successful room join
-      ws.send(JSON.stringify({
-        type: "roomJoined",
-        room: room
-      }));
+      if (data.type === "createRoom" || data.type === "joinRoom") {
+        const room = data.room;
+        if (!groups.has(room)) {
+          groups.set(room, { clients: new Set(), messages: [] });
+        }
+        groups.get(room).clients.add(ws);
+        ws.currentRoom = room;
 
-      console.log(`Client ${ws.clientId} joined room: ${room}`);
-    } else if (
-      data.type === "message" ||
-      data.type === "image" ||
-      data.type === "file" ||
-      data.type === "video"
-    ) {
-      const room = ws.currentRoom;
-      if (room && groups.has(room)) {
-        groups.get(room).forEach((client) => {
+        // Send chat history to the newly joined client
+        ws.send(JSON.stringify({
+          type: "chatHistory",
+          room: room,
+          messages: groups.get(room).messages
+        }));
+
+        // Notify all clients in the room about the updated participant count
+        const participantCount = groups.get(room).clients.size;
+        groups.get(room).clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: "participantCount",
+              room: room,
+              count: participantCount
+            }));
+          }
+        });
+
+        console.log(`Client ${ws.clientId} joined room: ${room}`);
+      } else if (data.type === "message") {
+        const room = ws.currentRoom;
+        if (room && groups.has(room)) {
+          const messageData = {
+            type: data.type,
+            sender: ws.clientId,
+            message: data.message,
+            room: room,
+          };
+          // Store the message in chat history
+          groups.get(room).messages.push(messageData);
+
+          // Broadcast the message to other clients
+          groups.get(room).clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(messageData));
+            }
+          });
+        }
+      } else if (data.type === "leaveRoom") {
+        const room = ws.currentRoom;
+        if (room && groups.has(room)) {
+          groups.get(room).clients.delete(ws);
+          ws.currentRoom = null;
+
+          // Notify remaining clients about the updated participant count
+          const participantCount = groups.get(room).clients.size;
+          groups.get(room).clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: "participantCount",
+                room: room,
+                count: participantCount
+              }));
+            }
+          });
+
+          if (participantCount === 0) {
+            groups.delete(room);
+          }
+
+          console.log(`Client ${ws.clientId} left room: ${room}`);
+        }
+      } else if (data.type === "personalMessage") {
+        const recipientId = data.recipientId;
+        const recipientWs = clients.get(recipientId);
+        if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
+          recipientWs.send(JSON.stringify({
+            type: "personalMessage",
+            sender: ws.clientId,
+            message: data.message
+          }));
+          console.log("Personal message sent to recipient");
+        } else {
+          console.log("Recipient not found or not connected");
+        }
+      } else if (data.type === "leaveGroup") {
+        // Corrected room retrieval and client removal
+        const room = ws.currentRoom;
+        if (room && groups.has(room)) {
+          groups.get(room).forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(
+                JSON.stringify({
+                  sender: "System",
+                  message: `Group ${room} has been disbanded.`,
+                  type: "system",
+                })
+              );
+            }
+            client.currentRoom = null;
+          });
+          groups.delete(room);
+          ws.currentRoom = null;
+          console.log("Group disbanded");
+        }
+      } else if (data.type === "broadcast") {
+        // Broadcast the message to all clients
+        wss.clients.forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
             client.send(
               JSON.stringify({
-                type: data.type,
-                sender: ws.clientId,
+                sender: data.sender,
                 message: data.message,
-                image: data.image,
-                file: data.file,
-                fileName: data.fileName,
-                video: data.video,
-                room: room,
+                type: "broadcast",
               })
             );
           }
         });
       }
-    } else if (data.type === "leaveRoom") {
-      const room = ws.currentRoom;
-      if (room && groups.has(room)) {
-        groups.get(room).delete(ws);
-        if (groups.get(room).size === 0) {
-          groups.delete(room);
-        }
-        ws.currentRoom = null;
-        console.log(`Client ${ws.clientId} left room: ${room}`);
-      }
-    } else if (data.type === "personalMessage") {
-      const recipientId = data.recipientId;
-      const recipientWs = clients.get(recipientId);
-      if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
-        recipientWs.send(JSON.stringify({
-          type: "personalMessage",
-          sender: ws.clientId,
-          message: data.message
-        }));
-        console.log("Personal message sent to recipient");
-      } else {
-        console.log("Recipient not found or not connected");
-      }
-    } else if (data.type === "leaveGroup") {
-      // Corrected room retrieval and client removal
-      const room = ws.currentRoom;
-      if (room && groups.has(room)) {
-        groups.get(room).forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(
-              JSON.stringify({
-                sender: "System",
-                message: `Group ${room} has been disbanded.`,
-                type: "system",
-              })
-            );
-          }
-          client.currentRoom = null;
-        });
-        groups.delete(room);
-        ws.currentRoom = null;
-        console.log("Group disbanded");
-      }
-    } else if (data.type === "broadcast") {
-      // Broadcast the message to all clients
-      wss.clients.forEach((client) => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(
-            JSON.stringify({
-              sender: data.sender,
-              message: data.message,
-              type: "broadcast",
-            })
-          );
-        }
-      });
+    } catch (error) {
+      console.error("Error processing message:", error);
     }
-    // Removed any redundant or conflicting code
   });
 
   ws.on("close", () => {
     console.log("A user disconnected");
     const room = ws.currentRoom;
     if (room && groups.has(room)) {
-      groups.get(room).delete(ws);
-      if (groups.get(room).size === 0) {
+      groups.get(room).clients.delete(ws);
+
+      // Notify remaining clients about the updated participant count
+      const participantCount = groups.get(room).clients.size;
+      groups.get(room).clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: "participantCount",
+            room: room,
+            count: participantCount
+          }));
+        }
+      });
+
+      if (participantCount === 0) {
         groups.delete(room);
       }
     }
