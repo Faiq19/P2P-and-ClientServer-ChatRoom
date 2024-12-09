@@ -11,50 +11,76 @@
     <div class="sidebar">
         <div class="header">
             <div class="brand">Wave</div>
-            <div class="user-status online"></div>
+            <div class="avatar">
+                <div class="status-indicator"></div>
+            </div>
         </div>
 
         <div class="sidebar-search-container">
-            <input type="text" placeholder="Search or start new chat">
+            <input type="text" placeholder="Search chats...">
         </div>
 
-        <div class="chat-list">
-            <!-- Dynamic chat items will be inserted here by JavaScript -->
+        <div class="sidebar-chats">
+            <!-- Chat list will be populated by JavaScript -->
         </div>
     </div>
 
     <div class="message-container">
         <div class="chat-header">
-            <div class="chat-info">
+            <div class="chat-info" style="display: none;">
                 <h3>Chat Room</h3>
                 <span class="participant-count">0 participants</span>
             </div>
             
             <div class="chat-actions">
-                <button id="create-room-button" class="action-button">New Room</button>
-                <button id="join-room-button" class="action-button">Join</button>
-                <button id="leave-room-button" class="action-button" style="display: none">Leave</button>
+                <div class="room-controls">
+                    <button id="create-room-button">Create Room</button>
+                    <button id="join-room-button">Join Room</button>
+                </div>
+                <button id="leave-room-button" style="display: none">Leave</button>
+                <button id="leave-group-button" style="display: none">Leave Group</button>
             </div>
         </div>
 
-        <div class="message-content" id="chat-box">
-            <!-- Messages will be inserted here by JavaScript -->
+        <div class="message-content" id="chat-box"></div>
+
+                <div class="private-message-container" id="private-chat-box">
+            <div class="private-chat-header">
+                <h3 id="private-chat-title">Private Chat</h3>
+                <button class="close-private-chat" id="close-private-chat">&times;</button>
+            </div>
+            <div class="private-message-content" id="private-message-content"></div>
+            <div class="private-message-input-container">
+                <input type="text" id="private-message-input" placeholder="Type a private message...">
+                <button id="send-private-message-button" class="send-button">Send</button>
+            </div>
         </div>
 
         <div class="message-input-container">
-            <input type="text" id="message-input" placeholder="Type your message...">
-            
+            <input type="text" id="message-input" placeholder="Type a message...">
             <div class="action-buttons">
-                <label class="action-button" for="file-input" id="send-file-button" title="Send file">
-                    <img src="icons/file.svg" alt="File">
-                </label>
-                <input type="file" id="file-input" hidden accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt">
+                <div class="file-controls">
+                    <label class="action-button" for="image-input" title="Send Image">
+                        <img src="image.svg" alt="Image">
+                    </label>
+                    <label class="action-button" for="file-input" title="Send File">
+                        <img src="paper-clip.svg" alt="File">
+                    </label>
+                    <label class="action-button" for="video-input" title="Send Video">
+                        <img src="video.svg" alt="Video">
+                    </label>
+                </div>
+                <input type="file" id="image-input" accept="image/*" hidden>
+                <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" hidden>
+                <input type="file" id="video-input" accept="video/*" hidden>
+                <button id="send-image-button">Send Image</button>
+                <button id="send-file-button">Send File</button>
+                <button id="send-video-button">Send Video</button>
+                <button id="send-button" class="send-button">Send</button>
             </div>
-
-            <button id="send-button" class="send-button">Send</button>
         </div>
     </div>
 
-    <script src="Person1.js"></script>
+    <script src="./Person1.js"></script>
 </body>
 </html>

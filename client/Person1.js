@@ -1,296 +1,457 @@
-const ws = new WebSocket("ws://localhost:3000");
+const ws = new WebSocket('ws://localhost:8080');
 let currentRoom = null;
-let clientId = null;
+let peerConnections = {};
+let dataChannels = {};
+let currentPeerId = null;
+const encryptionKey = 'your-encryption-key'; // Replace with a secure key
+let isConnecting = false;
+const clientName = 'Client 1';
 
-// Get references to buttons
-const createRoomButton = document.getElementById('create-room-button');
-const joinRoomButton = document.getElementById('join-room-button');
-const leaveRoomButton = document.getElementById('leave-room-button');
-
-// Add event listeners to buttons
-createRoomButton.addEventListener('click', () => {
-  const roomName = prompt('Enter room name:');
-  createRoom(roomName);
-});
-
-joinRoomButton.addEventListener('click', () => {
-  const roomName = prompt('Enter room name to join:');
-  joinRoom(roomName);
-});
-
-leaveRoomButton.addEventListener('click', leaveRoom);
-
-ws.addEventListener("open", () => {
-  console.log("Connected to server");
-});
-
-function appendMessage(sender, message) {
-  const chatBox = document.getElementById("chat-box");
-  const messageElement = document.createElement("div");
-  messageElement.textContent = `${sender}: ${message}`;
-  chatBox.appendChild(messageElement);
+function encryptMessage(message) {
+    // Implement encryption logic here
+    return message; // Placeholder
 }
 
-ws.addEventListener("message", (event) => {
-  try {
-    const data = JSON.parse(event.data);
-    console.log("Received message type:", data.type);
-
-    if (data.type === "file" && data.room === currentRoom) {
-      console.log("Received file:", data.fileName);
-      appendFileMessage(data.sender, data.file, data.fileName);
-    }
-    // ...existing code...
-    console.log("Message received:", data);
-
-    if (data.type === "init") {
-      clientId = data.clientId;
-      console.log("Initialized with client ID:", clientId);
-    } else if (data.type === "chatHistory") {
-      currentRoom = data.room;
-      toggleRoomButtons();
-      document.querySelector('.chat-info h3').textContent = `Room: ${currentRoom}`;
-      addSystemMessage(`Joined room "${currentRoom}" successfully`);
-
-      // Display chat history
-      data.messages.forEach((messageData) => {
-        if (messageData.type === "message") {
-          appendMessage(messageData.sender, messageData.message);
-        } else if (messageData.type === "file") {
-          appendFileMessage(messageData.sender, messageData.file, messageData.fileName);
-        }
-      });
-    } else if (data.type === "participantCount" && data.room === currentRoom) {
-      // Update participant count display
-      document.querySelector('.participant-count').textContent = `${data.count} participants`;
-    } else if (data.type === "file" && data.room === currentRoom) {
-      appendFileMessage(data.sender, data.file, data.fileName);
-    } else if (data.type === "message" && data.room === currentRoom) {
-      appendMessage(data.sender, data.message);
-    } else if (data.type === "system") {
-      addSystemMessage(data.message);
-    } else {
-      appendMessage(data.sender, data.message);
-    }
-  } catch (error) {
-    console.error("Error processing message:", error);
-  }
-});
+function decryptMessage(message) {
+    // Implement decryption logic here
+    return message; // Placeholder
+}
 
 function sendMessage(message) {
-  if (!message.trim() || !currentRoom) return;
-
-  const messageData = {
-    type: "message",
-    message: message,
-    sender: clientId,
-    room: currentRoom
-  };
-
-  ws.send(JSON.stringify(messageData));
-  appendMessage("You", message);
+    const encryptedMessage = encryptMessage(message);
+    ws.send(JSON.stringify({ type: 'message', message: encryptedMessage, room: currentRoom }));
+    appendMessage('You', message);
 }
 
-document.getElementById("send-button").addEventListener("click", () => {
-  const messageInput = document.getElementById("message-input");
-  const message = messageInput.value.trim();
-  if (message !== "") {
-    console.log("Sending message:", message);
-    sendMessage(message);
-    messageInput.value = "";
-  }
-});
-
-document.getElementById("create-room-button").addEventListener("click", () => {
-  const roomInput = document.getElementById("room-input");
-  const roomName = roomInput.value.trim();
-  if (roomName) {
-    console.log("Creating room:", roomName);
-    ws.send(JSON.stringify({
-      type: "createRoom",
-      room: roomName
-    }));
-    currentRoom = roomName;
-    toggleRoomButtons();
-    roomInput.value = "";
-  }
-});
-
-document.getElementById("join-room-button").addEventListener("click", () => {
-  const roomInput = document.getElementById("room-input");
-  const roomName = roomInput.value.trim();
-  if (roomName) {
-    console.log("Joining room:", roomName);
-    ws.send(JSON.stringify({
-      type: "joinRoom",
-      room: roomName
-    }));
-    currentRoom = roomName;
-    toggleRoomButtons();
-    roomInput.value = "";
-  }
-});
-
-document.getElementById("leave-room-button").addEventListener("click", () => {
-  console.log("Leaving room");
-  ws.send(JSON.stringify({ type: "leaveRoom" }));
-  currentRoom = null;
-  toggleRoomButtons();
-});
-
-document.getElementById("leave-group-button").addEventListener("click", () => {
-  console.log("Leaving group");
-  ws.send(JSON.stringify({ type: "leaveGroup" }));
-  currentRoom = null;
-  toggleRoomButtons();
-});
-
-document.getElementById("send-file-button").addEventListener("click", () => {
-  const fileInput = document.getElementById("file-input");
-  fileInput.click();
-});
-
-document.getElementById("file-input").addEventListener("change", (event) => {
-  const file = event.target.files[0];
-  if (file) {
-    sendFile(file);
-  }
-});
-
-function sendFile(file) {
-  if (!currentRoom) {
-    alert("Please join a room before sending files");
-    return;
-  }
-
-  console.log("Sending file:", file.name);
-
-  const maxSize = 5 * 1024 * 1024; // 5MB limit
-  if (file.size > maxSize) {
-    alert("File is too large. Maximum size is 5MB");
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    try {
-      const fileData = event.target.result;
-      console.log("File read successfully, sending to server...");
-
-      const messageData = {
-        type: "file",
-        sender: clientId,
-        file: fileData,
-        fileName: file.name,
-        room: currentRoom
-      };
-
-      ws.send(JSON.stringify(messageData));
-      appendFileMessage("You", fileData, file.name);
-    } catch (error) {
-      console.error("Error sending file:", error);
-      alert("Failed to send file. Please try again.");
+document.getElementById('send-button').addEventListener('click', () => {
+    const messageInput = document.getElementById('message-input');
+    const message = messageInput.value.trim();
+    if (message !== '') {
+        sendMessage(message);
+        messageInput.value = '';
     }
-  };
+});
 
-  reader.onerror = function(error) {
-    console.error("Error reading file:", error);
-    alert("Failed to read file. Please try again.");
-  };
+document.getElementById('send-private-message-button').addEventListener('click', sendPrivateMessage);
 
-  reader.readAsDataURL(file);
-}
+
+document.getElementById('private-message-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        sendPrivateMessage();
+    }
+});
+
+
+document.getElementById('send-image-button').addEventListener('click', () => {
+    const fileInput = document.getElementById('image-input');
+    const file = fileInput.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            const imageData = event.target.result;
+            ws.send(JSON.stringify({
+                type: 'image',
+                sender: 'Client 2',
+                image: imageData,
+                room: currentRoom
+            }));
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+document.getElementById('send-file-button').addEventListener('click', () => {
+    const fileInput = document.getElementById('file-input');
+    const file = fileInput.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            const fileData = event.target.result;
+            ws.send(JSON.stringify({
+                type: 'file',
+                sender: 'Client 2',
+                file: fileData,
+                fileName: file.name,
+                room: currentRoom
+            }));
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+document.getElementById('send-video-button').addEventListener('click', () => {
+    const fileInput = document.getElementById('video-input');
+    const file = fileInput.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            const videoData = event.target.result;
+            ws.send(JSON.stringify({
+                type: 'video',
+                sender: 'Client 2',
+                video: videoData,
+                room: currentRoom
+            }));
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+document.getElementById('create-room-button').addEventListener('click', () => {
+    const room = prompt('Enter room name:');
+    if (room) {
+        ws.send(JSON.stringify({ type: 'createRoom', room: room }));
+        currentRoom = room;
+        updateRoomInfo();
+        toggleRoomButtons();
+    }
+});
+
+document.getElementById('join-room-button').addEventListener('click', () => {
+    const room = prompt('Enter room name:');
+    if (room) {
+        ws.send(JSON.stringify({ type: 'joinRoom', room: room }));
+        currentRoom = room;
+        updateRoomInfo();
+        toggleRoomButtons();
+    }
+});
+
+document.getElementById('leave-room-button').addEventListener('click', () => {
+    ws.send(JSON.stringify({ type: 'leaveRoom', room: currentRoom }));
+    currentRoom = null;
+    updateRoomInfo();
+    toggleRoomButtons();
+});
+
+document.getElementById('close-private-chat').addEventListener('click', () => {
+    document.getElementById('private-chat-box').style.display = 'none';
+    currentPrivateChatPeer = null;
+});
+
+ws.addEventListener('message', (event) => {
+    try {
+        const data = JSON.parse(event.data);
+        const chatBox = document.getElementById('chat-box');
+        if (data.type === 'image') {
+            const imageElement = document.createElement('img');
+            imageElement.src = data.image;
+            chatBox.appendChild(imageElement);
+        } else if (data.type === 'file') {
+            const fileElement = document.createElement('a');
+            fileElement.href = data.file;
+            fileElement.setAttribute('download', data.fileName);
+            fileElement.textContent = `${data.sender}: ${data.fileName}`;
+            chatBox.appendChild(fileElement);
+        } else if (data.type === 'video') {
+            const videoElement = document.createElement('video');
+            videoElement.src = data.video;
+            videoElement.controls = true;
+            chatBox.appendChild(videoElement);
+        } else if (data.type === 'message') {
+            const decryptedMessage = decryptMessage(data.message);
+            appendMessage(data.sender, decryptedMessage);
+        } else if (data.type === 'offer') {
+            console.log('Received offer from', data.peerId);
+            const peerConnection = peerConnections[data.peerId] || createPeerConnection(data.peerId);
+
+            if (peerConnection.signalingState !== 'stable') {
+                // Collision detected, rollback and accept the incoming offer
+                peerConnection.setLocalDescription({ type: 'rollback' })
+                    .then(() => {
+                        console.log('Rolled back local description due to collision');
+                        handleOffer(data.offer, data.peerId);
+                    })
+                    .catch(error => console.error('Error during rollback:', error));
+            } else {
+                handleOffer(data.offer, data.peerId);
+            }
+        }
+        else if (data.type === 'answer') {
+            console.log('Received answer from', data.peerId);
+            const peerConnection = peerConnections[data.peerId];
+            if (peerConnection.signalingState === 'have-local-offer') {
+                peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer))
+                    .then(() => {
+                        console.log('Remote description set successfully');
+                        isConnecting = false;
+                    })
+                    .catch(error => {
+                        console.error('Error setting remote description:', error);
+                        isConnecting = false;
+                    });
+            } else {
+                console.warn('Unexpected signaling state:', peerConnection.signalingState);
+            }
+        } else if (data.type === 'ice-candidate') {
+            console.log('Received ICE candidate from', data.peerId);
+            const peerConnection = peerConnections[data.peerId];
+            if (peerConnection) {
+                peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate))
+                    .catch(error => console.error('Error adding ICE candidate:', error));
+            }
+        } else if (data.type === 'roomInfo') {
+            updateRoomInfo(data.room, data.participants);
+            updateSidebar(data.participants);
+        }
+        function handleOffer(offer, peerId) {
+            const peerConnection = peerConnections[peerId];
+            peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
+                .then(() => {
+                    console.log('Creating answer...');
+                    return peerConnection.createAnswer();
+                })
+                .then(answer => {
+                    console.log('Setting local description...');
+                    return peerConnection.setLocalDescription(answer);
+                })
+                .then(() => {
+                    console.log('Sending answer...');
+                    ws.send(JSON.stringify({
+                        type: 'answer',
+                        answer: peerConnection.localDescription,
+                        peerId: peerId
+                    }));
+                })
+                .catch(error => console.error('Error handling offer:', error));
+        }
+    } catch (error) {
+        console.error('Error handling WebSocket message:', error);
+    }
+});
 
 function toggleRoomButtons() {
-  if (currentRoom) {
-    createRoomButton.style.display = "none";
-    joinRoomButton.style.display = "none";
-    leaveRoomButton.style.display = "block";
-  } else {
-    createRoomButton.style.display = "block";
-    joinRoomButton.style.display = "block";
-    leaveRoomButton.style.display = "none";
-    // Clear participant count when not in a room
-    document.querySelector('.participant-count').textContent = `0 participants`;
-  }
+    const createRoomButton = document.getElementById('create-room-button');
+    const joinRoomButton = document.getElementById('join-room-button');
+    const leaveRoomButton = document.getElementById('leave-room-button');
+    const leaveGroupButton = document.getElementById('leave-group-button');
+
+    if (currentRoom) {
+        createRoomButton.style.display = 'none';
+        joinRoomButton.style.display = 'none';
+        leaveRoomButton.style.display = 'block';
+        leaveGroupButton.style.display = 'block';
+    } else {
+        createRoomButton.style.display = 'block';
+        joinRoomButton.style.display = 'block';
+        leaveRoomButton.style.display = 'none';
+        leaveGroupButton.style.display = 'none';
+    }
 }
 
-function createRoom(roomName) {
-  if (roomName) {
-    ws.send(JSON.stringify({
-      type: "createRoom",
-      room: roomName
-    }));
-  }
+function updateRoomInfo(room = currentRoom, participants = []) {
+    const chatInfo = document.querySelector('.chat-info');
+    const participantCount = document.querySelector('.participant-count');
+    if (room) {
+        chatInfo.style.display = 'block';
+        chatInfo.querySelector('h3').textContent = `Room: ${room}`;
+        participantCount.textContent = `${participants.length} participants`;
+    } else {
+        chatInfo.style.display = 'none';
+    }
 }
 
-function joinRoom(roomName) {
-  if (roomName) {
-    ws.send(JSON.stringify({
-      type: "joinRoom",
-      room: roomName
-    }));
-  }
+function updateSidebar(participants) {
+    const sidebarChats = document.querySelector('.sidebar-chats');
+    sidebarChats.innerHTML = '';
+    participants.forEach(participant => {
+        const participantElement = document.createElement('div');
+        participantElement.classList.add('sidebar-chat');
+        participantElement.textContent = participant;
+        participantElement.addEventListener('click', () => initiateDirectMessage(participant));
+        sidebarChats.appendChild(participantElement);
+    });
 }
 
-function leaveRoom() {
-  if (currentRoom) {
-    ws.send(JSON.stringify({ type: "leaveRoom" }));
-    currentRoom = null;
-    toggleRoomButtons();
-    document.querySelector('.chat-info h3').textContent = `Chat Room`;
-    addSystemMessage(`Left the room`);
-    document.getElementById('chat-box').innerHTML = '';
-    // Reset participant count display
-    document.querySelector('.participant-count').textContent = `0 participants`;
-  }
+function initiateDirectMessage(peerId) {
+    console.log('Initiating direct message with', peerId);
+    currentPrivateChatPeer = peerId;
+
+    document.getElementById('private-chat-title').textContent = `Chat with ${peerId.substring(0, 8)}...`;
+    document.getElementById('private-chat-box').style.display = 'block';
+    document.getElementById('private-message-content').innerHTML = '';
+
+    if (!peerConnections[peerId] && !isConnecting) {
+        isConnecting = true;
+        const peerConnection = createPeerConnection(peerId);
+
+        try {
+            const dataChannel = peerConnection.createDataChannel('chat', {
+                ordered: true,
+                reliable: true
+            });
+
+            setupDataChannel(dataChannel, peerId);
+
+            console.log('Creating offer...');
+            peerConnection.createOffer({
+                offerToReceiveAudio: false,
+                offerToReceiveVideo: false
+            })
+                .then(offer => {
+                    console.log('Setting local description...');
+                    return peerConnection.setLocalDescription(offer);
+                })
+                .then(() => {
+                    console.log('Sending offer...');
+                    ws.send(JSON.stringify({
+                        type: 'offer',
+                        offer: peerConnection.localDescription,
+                        peerId: peerId
+                    }));
+                })
+                .catch(error => {
+                    console.error('Error creating offer:', error);
+                    isConnecting = false;
+                });
+        } catch (error) {
+            console.error('Error setting up peer connection:', error);
+            isConnecting = false;
+        }
+    }
 }
 
-function appendFileMessage(sender, fileData, fileName) {
-  console.log("Appending file message:", fileName);
-  
-  const chatBox = document.getElementById("chat-box");
-  const messageDiv = document.createElement("div");
-  messageDiv.className = `chat-message ${sender === "You" ? "message-sent" : "message-received"}`;
+function setupDataChannel(dataChannel, peerId) {
+    dataChannel.onopen = () => {
+        console.log('Data channel open with', peerId);
+        dataChannels[peerId] = dataChannel;
+        isConnecting = false;
+    };
 
-  // Create message container
-  const messageContainer = document.createElement("div");
-  messageContainer.className = "file-message-container";
+    dataChannel.onclose = () => {
+        console.log('Data channel closed with', peerId);
+        delete dataChannels[peerId];
+    };
 
-  // Add sender name
-  const senderText = document.createElement("div");
-  senderText.className = "message-sender";
-  senderText.textContent = sender;
-  messageContainer.appendChild(senderText);
+    dataChannel.onerror = (error) => {
+        console.error('Data channel error:', error);
+    };
 
-  // Add file icon and name
-  const fileInfo = document.createElement("div");
-  fileInfo.className = "file-info";
-  fileInfo.innerHTML = `📎 ${fileName}`;
-  messageContainer.appendChild(fileInfo);
-
-  // Add download button
-  const downloadButton = document.createElement("button");
-  downloadButton.className = "download-button";
-  downloadButton.innerHTML = "Download";
-  downloadButton.onclick = () => {
-    const link = document.createElement("a");
-    link.href = fileData;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-  messageContainer.appendChild(downloadButton);
-
-  messageDiv.appendChild(messageContainer);
-  chatBox.appendChild(messageDiv);
-  chatBox.scrollTop = chatBox.scrollHeight;
+    dataChannel.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            const decryptedMessage = decryptMessage(data.message);
+            appendPrivateMessage(data.sender, decryptedMessage, 'received');
+        } catch (error) {
+            console.error('Error handling message:', error);
+        }
+    };
 }
 
-function addSystemMessage(message) {
-  const messageElement = document.createElement('div');
-  messageElement.className = 'message system-message';
-  messageElement.textContent = message;
-  document.getElementById('chat-box').appendChild(messageElement);
+function sendPrivateMessage() {
+    const messageInput = document.getElementById('private-message-input');
+    const message = messageInput.value.trim();
+
+    if (message && currentPrivateChatPeer && dataChannels[currentPrivateChatPeer]) {
+        const encryptedMessage = encryptMessage(message);
+        dataChannels[currentPrivateChatPeer].send(JSON.stringify({
+            type: 'message',
+            message: encryptedMessage,
+            sender: clientName // Use clientName instead of 'You'
+        }));
+        // Display 'You' for messages you send
+        appendPrivateMessage('You', message, 'sent');
+        messageInput.value = '';
+    }
+}
+
+
+
+// Implement WebRTC for direct peer-to-peer communication
+function createPeerConnection(peerId) {
+    const config = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            {
+                urls: 'turn:numb.viagenie.ca',
+                credential: 'muazkh',
+                username: 'webrtc@live.com'
+            }
+        ],
+        iceCandidatePoolSize: 10
+    };
+
+    const peerConnection = new RTCPeerConnection(config);
+    peerConnections[peerId] = peerConnection;
+
+    peerConnection.onconnectionstatechange = () => {
+        console.log(`Connection state for ${peerId}:`, peerConnection.connectionState);
+        if (peerConnection.connectionState === 'failed') {
+            console.log('Attempting to reconnect...');
+            restartIce(peerId);
+        }
+    };
+
+    peerConnection.onsignalingstatechange = () => {
+        console.log(`Signaling state for ${peerId}:`, peerConnection.signalingState);
+    };
+
+    peerConnection.oniceconnectionstatechange = () => {
+        console.log(`ICE connection state for ${peerId}:`, peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === 'failed') {
+            peerConnection.restartIce();
+        }
+    };
+
+    // Improved ICE candidate handling
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            console.log('Sending ICE candidate to', peerId);
+            ws.send(JSON.stringify({
+                type: 'ice-candidate',
+                candidate: event.candidate,
+                peerId: peerId
+            }));
+        }
+    };
+
+    peerConnection.onicegatheringstatechange = () => {
+        console.log(`ICE gathering state: ${peerConnection.iceGatheringState}`);
+    };
+
+    peerConnection.ondatachannel = (event) => {
+        console.log('Received data channel');
+        setupDataChannel(event.channel, peerId);
+    };
+
+    return peerConnection;
+}
+
+// Add reconnection logic
+function restartIce(peerId) {
+    const peerConnection = peerConnections[peerId];
+    if (peerConnection) {
+        peerConnection.createOffer({ iceRestart: true })
+            .then(offer => peerConnection.setLocalDescription(offer))
+            .then(() => {
+                ws.send(JSON.stringify({
+                    type: 'offer',
+                    offer: peerConnection.localDescription,
+                    peerId: peerId
+                }));
+            })
+            .catch(error => console.error('Error restarting ICE:', error));
+    }
+}
+
+
+function appendMessage(sender, message) {
+    const chatBox = document.getElementById('chat-box');
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
+    messageElement.innerHTML = `<strong>${sender}:</strong> ${message}`;
+    chatBox.appendChild(messageElement);
+    chatBox.scrollTop = chatBox.scrollHeight; // Scroll to the bottom
+}
+
+function appendPrivateMessage(sender, message, type = 'sent') {
+    const privateChatBox = document.getElementById('private-message-content');
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('private-message', type);
+    messageElement.innerHTML = `<strong>${sender}:</strong> ${message}`;
+    privateChatBox.appendChild(messageElement);
+    privateChatBox.scrollTop = privateChatBox.scrollHeight;
 }
