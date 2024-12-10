@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="textGradient" gradientTransform="rotate(45)">
+      <stop offset="0%" stop-color="#FF6B6B"/>
+      <stop offset="100%" stop-color="#4ECDC4"/>
+    </linearGradient>
+  </defs>
+  <text x="10" y="50" font-size="28" font-weight="600" fill="url(#textGradient)" font-family="Arial, sans-serif">
+    Wave
+  </text>
+</svg>
