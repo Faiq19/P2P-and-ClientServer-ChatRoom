@@ -3,18 +3,18 @@ let currentRoom = null;
 let peerConnections = {};
 let dataChannels = {};
 let currentPeerId = null;
-const encryptionKey = 'your-encryption-key'; // Replace with a secure key
+const encryptionKey = 'your-encryption-key'; 
 let isConnecting = false;
 const clientName = 'Client 1';
 
 function encryptMessage(message) {
-    // Implement encryption logic here
-    return message; // Placeholder
+    
+    return message; 
 }
 
 function decryptMessage(message) {
-    // Implement decryption logic here
-    return message; // Placeholder
+    
+    return message; 
 }
 
 function sendMessage(message) {
@@ -347,9 +347,9 @@ function sendPrivateMessage() {
         dataChannels[currentPrivateChatPeer].send(JSON.stringify({
             type: 'message',
             message: encryptedMessage,
-            sender: clientName // Use clientName instead of 'You'
+            sender: clientName 
         }));
-        // Display 'You' for messages you send
+        
         appendPrivateMessage('You', message, 'sent');
         messageInput.value = '';
     }
@@ -357,7 +357,6 @@ function sendPrivateMessage() {
 
 
 
-// Implement WebRTC for direct peer-to-peer communication
 function createPeerConnection(peerId) {
     const config = {
         iceServers: [
@@ -444,7 +443,7 @@ function appendMessage(sender, message) {
     messageElement.classList.add('message');
     messageElement.innerHTML = `<strong>${sender}:</strong> ${message}`;
     chatBox.appendChild(messageElement);
-    chatBox.scrollTop = chatBox.scrollHeight; // Scroll to the bottom
+    chatBox.scrollTop = chatBox.scrollHeight; 
 }
 
 function appendPrivateMessage(sender, message, type = 'sent') {
