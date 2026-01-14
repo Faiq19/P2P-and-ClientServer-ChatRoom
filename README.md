@@ -10,7 +10,6 @@ A modern, real-time chat application that combines both client-server and peer-t
 - **Media Sharing**: Support for images, videos, and document files
 - **Modern UI**: Clean and responsive interface with custom styling
 - **Multiple Participants**: See all participants in the current room
-- **Message Encryption**: Built-in encryption support for secure communication
 - **Connection Management**: Automatic ICE restart and reconnection handling
 
 ## 🛠️ Tech Stack
@@ -119,8 +118,8 @@ const ws = new WebSocket('ws://localhost:8080');
 ## 🔐 Security Features
 
 - Unique client IDs generated using cryptographic functions
-- Support for message encryption/decryption (extensible)
 - Secure P2P communication via WebRTC data channels
+- Architecture supports future implementation of message encryption
 
 ## 🤝 Contributing
 
